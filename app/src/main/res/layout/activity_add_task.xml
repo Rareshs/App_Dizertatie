@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Selected User's Name -->
+    <TextView
+        android:id="@+id/textViewUsername"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Assigning task to: [username]"
+        android:textSize="16sp"
+        android:padding="8dp" />
+
+    <!-- Task Description Input -->
+    <EditText
+        android:id="@+id/editTextTaskDescription"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Task Description"
+        android:inputType="textMultiLine"
+        android:minLines="3"
+        android:padding="8dp" />
+
+    <!-- Deadline Input -->
+    <EditText
+        android:id="@+id/editTextDeadline"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Deadline (Optional, e.g., YYYY-MM-DD)"
+        android:inputType="date"
+        android:padding="8dp" />
+
+    <!-- Add Task Button -->
+    <Button
+        android:id="@+id/buttonAddTask"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Add Task"
+        android:layout_marginTop="16dp" />
+</LinearLayout>
