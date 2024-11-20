@@ -3,6 +3,7 @@ package com.example.app_dizertatie;
 import android.os.Bundle;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -26,6 +27,9 @@ public class MainActivity extends AppCompatActivity {
         // Initialize Database Helper
         db = new DataBaseHelper(this);
 
+        // Debug the users in the database
+        db.debugUsers();
+
         // Find Views
         editTextUsername = findViewById(R.id.editTextUsername);
         editTextPassword = findViewById(R.id.editTextPassword);
@@ -37,17 +41,39 @@ public class MainActivity extends AppCompatActivity {
             String username = editTextUsername.getText().toString();
             String password = editTextPassword.getText().toString();
 
+            // Debug login credentials
+            Log.d("MainActivity", "Attempting login with Username: " + username + ", Password: " + password);
+
             // Check user role in the database
             String role = db.getUserRole(username, password);
+            Log.d("MainActivity", "Role retrieved for user: " + role);
+
             if (role != null) {
                 if (role.equals("Admin")) {
-                    startActivity(new Intent(MainActivity.this, AdminActivity.class));
-                    finish();
+                    // Retrieve the department ID for the logged-in admin
+                    int adminDepartmentId = db.getAdminDepartmentId(username);
+                    String departmentName = db.getDepartmentName(adminDepartmentId);
+
+                    // Debug the department information
+                    Log.d("MainActivity", "Admin Department ID: " + adminDepartmentId + ", Department Name: " + departmentName);
+
+                    if (adminDepartmentId != -1) {
+                        // Pass department info to AdminActivity
+                        Intent intent = new Intent(MainActivity.this, AdminActivity.class);
+                        intent.putExtra("departmentId", adminDepartmentId);
+                        intent.putExtra("departmentName", departmentName);
+                        startActivity(intent);
+                        finish();
+                    } else {
+                        Toast.makeText(MainActivity.this, "Failed to retrieve department information", Toast.LENGTH_SHORT).show();
+                    }
                 } else {
+                    Log.d("MainActivity", "Navigating to UserActivity for user: " + username);
                     startActivity(new Intent(MainActivity.this, UserActivity.class));
                     finish();
                 }
             } else {
+                Log.d("MainActivity", "Invalid credentials for Username: " + username);
                 Toast.makeText(MainActivity.this, "Invalid credentials", Toast.LENGTH_SHORT).show();
             }
         });
@@ -58,4 +84,5 @@ public class MainActivity extends AppCompatActivity {
             startActivity(new Intent(MainActivity.this, RegisterActivity.class));
         });
     }
+
 }

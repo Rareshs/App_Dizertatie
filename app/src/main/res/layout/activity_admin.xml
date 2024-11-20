@@ -3,14 +3,19 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center">
+    android:padding="16dp">
 
     <TextView
-        android:id="@+id/textViewAdmin"
+        android:id="@+id/textViewAdminWelcome"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Admin"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:textColor="@android:color/black" />
+        android:text="Welcome, Admin"
+        android:textSize="20sp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="16dp" />
+
+    <ListView
+        android:id="@+id/listViewUsers"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 </LinearLayout>

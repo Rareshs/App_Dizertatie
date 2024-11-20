@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.util.Log;
 
 public class DataBaseHelper extends SQLiteOpenHelper {
 
@@ -24,6 +25,14 @@ public class DataBaseHelper extends SQLiteOpenHelper {
     // Departments table
     public static final String TABLE_DEPARTMENTS = "departments";
     public static final String COLUMN_DEPARTMENT_NAME = "department_name";
+
+    // Tasks table
+    public static final String TABLE_TASKS = "tasks";
+    public static final String COLUMN_TASK_ID = "task_id";
+    public static final String COLUMN_TASK_TITLE = "task_title";
+    public static final String COLUMN_TASK_DETAILS = "task_details";
+    public static final String COLUMN_TASK_DEADLINE = "task_deadline"; // Optional deadline
+    public static final String COLUMN_ASSIGNED_USER_ID = "assigned_user_id";
 
     public DataBaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -46,12 +55,24 @@ public class DataBaseHelper extends SQLiteOpenHelper {
                 + COLUMN_DEPARTMENT_ID + " INTEGER, "
                 + "FOREIGN KEY(" + COLUMN_DEPARTMENT_ID + ") REFERENCES " + TABLE_DEPARTMENTS + "(" + COLUMN_DEPARTMENT_ID + "))";
         db.execSQL(CREATE_USERS_TABLE);
+        // Create Tasks Table
+        String CREATE_TASKS_TABLE = "CREATE TABLE " + TABLE_TASKS + "("
+                + COLUMN_TASK_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + COLUMN_TASK_TITLE + " TEXT, "
+                + COLUMN_TASK_DETAILS + " TEXT, "
+                + COLUMN_TASK_DEADLINE + " DATE DEFAULT NULL, "  // Optional deadline
+                + COLUMN_ASSIGNED_USER_ID + " INTEGER, "
+                + COLUMN_DEPARTMENT_ID + " INTEGER, "
+                + "FOREIGN KEY(" + COLUMN_ASSIGNED_USER_ID + ") REFERENCES " + TABLE_USERS + "(" + COLUMN_USER_ID + "), "
+                + "FOREIGN KEY(" + COLUMN_DEPARTMENT_ID + ") REFERENCES " + TABLE_DEPARTMENTS + "(" + COLUMN_DEPARTMENT_ID + "))";
+        db.execSQL(CREATE_TASKS_TABLE);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_USERS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_DEPARTMENTS);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_TASKS); // Drop tasks table
         onCreate(db);
     }
 
@@ -74,14 +95,23 @@ public class DataBaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_PASSWORD, password);
         values.put(COLUMN_ROLE, role);
 
-        // Only add department ID if the user is not an admin
         if (departmentId != null) {
             values.put(COLUMN_DEPARTMENT_ID, departmentId);
+            Log.d("Database", "Adding user with departmentId: " + departmentId);
+        } else {
+            Log.d("Database", "Adding user without departmentId (admin): " + username);
         }
 
-        db.insert(TABLE_USERS, null, values);
+        long result = db.insert(TABLE_USERS, null, values);
+        if (result == -1) {
+            Log.e("Database", "Failed to insert user: " + username);
+        } else {
+            Log.d("Database", "User inserted successfully: " + username);
+        }
+
         db.close();
     }
+
 
     // Method to check if any admins exist
     public boolean hasAdmins() {
@@ -151,5 +181,93 @@ public class DataBaseHelper extends SQLiteOpenHelper {
         db.close();
 
         return exists;
+    }
+    public int getAdminDepartmentId(String adminUsername) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.query(TABLE_USERS, new String[]{COLUMN_DEPARTMENT_ID},
+                COLUMN_USERNAME + "=? AND " + COLUMN_ROLE + "=?",
+                new String[]{adminUsername, "Admin"}, null, null, null);
+
+        int departmentId = -1;
+        if (cursor != null && cursor.moveToFirst()) {
+            departmentId = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_DEPARTMENT_ID));
+            cursor.close();
+        }
+        db.close();
+        return departmentId;
+    }
+    public String getDepartmentName(int departmentId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.query(TABLE_DEPARTMENTS, new String[]{COLUMN_DEPARTMENT_NAME},
+                COLUMN_DEPARTMENT_ID + "=?", new String[]{String.valueOf(departmentId)},
+                null, null, null);
+
+        String departmentName = null;
+        if (cursor != null && cursor.moveToFirst()) {
+            departmentName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEPARTMENT_NAME));
+            cursor.close();
+        }
+        db.close();
+        return departmentName;
+    }
+
+    public Cursor getUsersByDepartment(int departmentId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        return db.query(TABLE_USERS, null,
+                COLUMN_DEPARTMENT_ID + "=? AND " + COLUMN_ROLE + "=?",
+                new String[]{String.valueOf(departmentId), "User"},
+                null, null, COLUMN_USERNAME);
+    }
+    public long addTaskWithDeadline(String title, String details, String deadline, int userId, int departmentId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_TASK_TITLE, title);
+        values.put(COLUMN_TASK_DETAILS, details);
+        if (deadline != null) {
+            values.put(COLUMN_TASK_DEADLINE, deadline); // Only set deadline if provided
+        }
+        values.put(COLUMN_ASSIGNED_USER_ID, userId);
+        values.put(COLUMN_DEPARTMENT_ID, departmentId);
+        long result = db.insert(TABLE_TASKS, null, values); // Return the row ID or -1 if failed
+        db.close();
+        return result;
+    }
+    public Cursor getTasksByUser(int userId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        return db.query(TABLE_TASKS, null, COLUMN_ASSIGNED_USER_ID + "=?",
+                new String[]{String.valueOf(userId)}, null, null, COLUMN_TASK_DEADLINE + " ASC");
+    }
+    public Cursor getTasksByDepartment(int departmentId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        return db.query(TABLE_TASKS, null, COLUMN_DEPARTMENT_ID + "=?",
+                new String[]{String.valueOf(departmentId)}, null, null, COLUMN_TASK_DEADLINE + " ASC");
+    }
+    public Cursor getOverdueTasks() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        String query = "SELECT * FROM " + TABLE_TASKS + " WHERE " + COLUMN_TASK_DEADLINE + " < DATE('now')";
+        return db.rawQuery(query, null);
+    }
+    public Cursor getUserById(int userId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        return db.query(TABLE_USERS, null, COLUMN_USER_ID + "=?",
+                new String[]{String.valueOf(userId)}, null, null, null);
+    }
+    public void debugUsers() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_USERS, null);
+
+        if (cursor.moveToFirst()) {
+            do {
+                int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_USER_ID));
+                String username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME));
+                String role = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ROLE));
+                int departmentId = cursor.isNull(cursor.getColumnIndexOrThrow(COLUMN_DEPARTMENT_ID)) ? -1 : cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_DEPARTMENT_ID));
+
+                Log.d("DatabaseDebug", "User ID: " + id + ", Username: " + username + ", Role: " + role + ", Department ID: " + departmentId);
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        db.close();
     }
 }

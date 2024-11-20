@@ -9,6 +9,7 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.AdapterView;
 import android.widget.Toast;
+import android.util.Log;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -74,23 +75,39 @@ public class RegisterActivity extends AppCompatActivity {
             String password = editTextRegisterPassword.getText().toString();
             String role = spinnerRole.getSelectedItem().toString();
 
+            if (username.isEmpty() || password.isEmpty()) {
+                Toast.makeText(this, "Username and Password cannot be empty.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             if (role.equals("Admin")) {
                 String departmentName = editTextDepartmentName.getText().toString();
                 if (!departmentName.isEmpty()) {
-                    db.addDepartment(departmentName);  // Add department for new admin
-                    db.addUser(username, password, role, null); // Register admin without department ID
-                    Toast.makeText(this, "Admin registered successfully.", Toast.LENGTH_SHORT).show();
-                    finish();
+                    // Add the department and retrieve its ID
+                    long departmentId = db.addDepartment(departmentName);
+                    if (departmentId != -1) {
+                        // Associate the admin with the department
+                        db.addUser(username, password, role, (int) departmentId);
+                        Toast.makeText(this, "Admin registered successfully.", Toast.LENGTH_SHORT).show();
+                        finish();
+                    } else {
+                        Toast.makeText(this, "Failed to add department.", Toast.LENGTH_SHORT).show();
+                    }
                 } else {
                     Toast.makeText(this, "Please specify a department name for the admin.", Toast.LENGTH_SHORT).show();
                 }
+
             } else {
                 if (db.hasDepartments()) {
                     String departmentName = spinnerDepartment.getSelectedItem().toString();
                     int departmentId = db.getDepartmentId(departmentName);
-                    db.addUser(username, password, role, departmentId);
-                    Toast.makeText(this, "User registered successfully.", Toast.LENGTH_SHORT).show();
-                    finish();
+                    if (departmentId != -1) {
+                        db.addUser(username, password, role, departmentId);
+                        Toast.makeText(this, "User registered successfully.", Toast.LENGTH_SHORT).show();
+                        finish();
+                    } else {
+                        Toast.makeText(this, "Failed to retrieve selected department.", Toast.LENGTH_SHORT).show();
+                    }
                 } else {
                     Toast.makeText(this, "No departments available. Please contact an admin.", Toast.LENGTH_LONG).show();
                 }
@@ -112,6 +129,12 @@ public class RegisterActivity extends AppCompatActivity {
                 }
             } while (cursor.moveToNext());
             cursor.close();
+        }
+
+        if (departmentList.isEmpty()) {
+            Log.d("RegisterActivity", "No departments found in the database.");
+        } else {
+            Log.d("RegisterActivity", "Departments loaded: " + departmentList);
         }
 
         ArrayAdapter<String> departmentAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, departmentList);
