@@ -18,11 +18,11 @@ public class UserTasksActivity extends AppCompatActivity {
     private static final String TAG = "UserTasksActivity"; // For logging
     private DataBaseHelper db;
     private ListView listViewTasks;
-    private Button buttonAddTask;
+    private Button buttonAddTask, buttonViewHistory; // Added buttonViewHistory
     private ArrayList<String> taskList;
     private int userId;
     private int departmentId;
-    private String username; // Added username field
+    private String username;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,6 +32,7 @@ public class UserTasksActivity extends AppCompatActivity {
         db = new DataBaseHelper(this);
         listViewTasks = findViewById(R.id.listViewTasks);
         buttonAddTask = findViewById(R.id.buttonAddTask);
+        buttonViewHistory = findViewById(R.id.buttonViewHistory); // Initialize view history button
 
         // Retrieve data from Intent
         userId = getIntent().getIntExtra("userId", -1);
@@ -49,7 +50,6 @@ public class UserTasksActivity extends AppCompatActivity {
 
         if (departmentId == -1) {
             Log.d(TAG, "departmentId not passed via Intent, fetching from database");
-            // Fetch departmentId from the database
             Cursor cursor = db.getUserById(userId);
             if (cursor != null && cursor.moveToFirst()) {
                 departmentId = cursor.getInt(cursor.getColumnIndexOrThrow(DataBaseHelper.COLUMN_DEPARTMENT_ID));
@@ -71,6 +71,7 @@ public class UserTasksActivity extends AppCompatActivity {
 
         loadTasks();
 
+        // Add task button functionality
         buttonAddTask.setOnClickListener(v -> {
             Log.d(TAG, "Navigating to AddTaskActivity with userId: " + userId + ", departmentId: " + departmentId + ", username: " + username);
             Intent intent = new Intent(UserTasksActivity.this, AddTaskActivity.class);
@@ -79,11 +80,26 @@ public class UserTasksActivity extends AppCompatActivity {
             intent.putExtra("username", username); // Pass username
             startActivity(intent);
         });
+
+        // View history button functionality
+        buttonViewHistory.setOnClickListener(v -> {
+            Log.d(TAG, "Navigating to AdminTaskHistoryActivity for userId: " + userId);
+            Intent intent = new Intent(UserTasksActivity.this, AdminTaskHistoryActivity.class);
+            intent.putExtra("userId", userId);
+            startActivity(intent);
+        });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Reload the tasks whenever the activity is resumed
+        loadTasks();
     }
 
     private void loadTasks() {
         Log.d(TAG, "Loading tasks for userId: " + userId);
-        Cursor cursor = db.getTasksByUser(userId);
+        Cursor cursor = db.getPendingTasksByUser(userId); // Use a new query method for pending tasks
 
         taskList = new ArrayList<>();
 
@@ -108,10 +124,11 @@ public class UserTasksActivity extends AppCompatActivity {
         }
 
         if (taskList.isEmpty()) {
-            Toast.makeText(this, "No tasks found for this user", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No pending tasks for this user", Toast.LENGTH_SHORT).show();
         }
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, taskList);
         listViewTasks.setAdapter(adapter);
     }
+
 }

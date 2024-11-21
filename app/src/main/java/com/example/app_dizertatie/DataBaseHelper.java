@@ -33,6 +33,15 @@ public class DataBaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_TASK_DETAILS = "task_details";
     public static final String COLUMN_TASK_DEADLINE = "task_deadline"; // Optional deadline
     public static final String COLUMN_ASSIGNED_USER_ID = "assigned_user_id";
+    private static final String COLUMN_TASK_COMPLETED = "isCompleted";
+
+    //History task table
+    private static final String TABLE_HISTORY = "history";
+    private static final String COLUMN_HISTORY_ID = "history_id";
+    private static final String COLUMN_HISTORY_USER_ID = "user_id";
+    private static final String COLUMN_HISTORY_TASK_ID = "task_id";
+    public static final String COLUMN_HISTORY_TIMESTAMP = "timestamp"; // Replace "timestamp" with the actual column name in your history table
+
 
     public DataBaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -63,10 +72,21 @@ public class DataBaseHelper extends SQLiteOpenHelper {
                 + COLUMN_TASK_DEADLINE + " DATE DEFAULT NULL, "  // Optional deadline
                 + COLUMN_ASSIGNED_USER_ID + " INTEGER, "
                 + COLUMN_DEPARTMENT_ID + " INTEGER, "
+                +  COLUMN_TASK_COMPLETED + " INTEGER DEFAULT 0, "
                 + "FOREIGN KEY(" + COLUMN_ASSIGNED_USER_ID + ") REFERENCES " + TABLE_USERS + "(" + COLUMN_USER_ID + "), "
                 + "FOREIGN KEY(" + COLUMN_DEPARTMENT_ID + ") REFERENCES " + TABLE_DEPARTMENTS + "(" + COLUMN_DEPARTMENT_ID + "))";
         db.execSQL(CREATE_TASKS_TABLE);
+        String CREATE_HISTORY_TABLE = "CREATE TABLE " + TABLE_HISTORY + "("
+                + COLUMN_HISTORY_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + COLUMN_HISTORY_USER_ID + " INTEGER, "
+                + COLUMN_HISTORY_TASK_ID + " INTEGER, "
+                + COLUMN_TASK_TITLE + " TEXT, " // Add this line
+                + COLUMN_HISTORY_TIMESTAMP + " DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                + "FOREIGN KEY(" + COLUMN_HISTORY_USER_ID + ") REFERENCES " + TABLE_USERS + "(" + COLUMN_USER_ID + "), "
+                + "FOREIGN KEY(" + COLUMN_HISTORY_TASK_ID + ") REFERENCES " + TABLE_TASKS + "(" + COLUMN_TASK_ID + "))";
+        db.execSQL(CREATE_HISTORY_TABLE);
     }
+
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -133,6 +153,7 @@ public class DataBaseHelper extends SQLiteOpenHelper {
         return hasDepartment;
     }
 
+
     // Method to get all departments (for populating department dropdowns)
     public Cursor getAllDepartments() {
         SQLiteDatabase db = this.getReadableDatabase();
@@ -169,7 +190,11 @@ public class DataBaseHelper extends SQLiteOpenHelper {
         }
         return null;  // User not found
     }
-
+    public Cursor getUserByUsername(String username) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        return db.query(TABLE_USERS, null, COLUMN_USERNAME + "=?",
+                new String[]{username}, null, null, null);
+    }
     // Method to check if a user exists based on username and role
     public boolean userExists(String username, String role) {
         SQLiteDatabase db = this.getReadableDatabase();
@@ -210,6 +235,9 @@ public class DataBaseHelper extends SQLiteOpenHelper {
         db.close();
         return departmentName;
     }
+    public String getTaskCompletedColumn() {
+        return COLUMN_TASK_COMPLETED;
+    }
 
     public Cursor getUsersByDepartment(int departmentId) {
         SQLiteDatabase db = this.getReadableDatabase();
@@ -247,11 +275,86 @@ public class DataBaseHelper extends SQLiteOpenHelper {
         String query = "SELECT * FROM " + TABLE_TASKS + " WHERE " + COLUMN_TASK_DEADLINE + " < DATE('now')";
         return db.rawQuery(query, null);
     }
+    public void addHistory(int userId, int taskId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        // Fetch task title from the tasks table
+        String taskTitle = null;
+        Cursor cursor = db.query(TABLE_TASKS, new String[]{COLUMN_TASK_TITLE},
+                COLUMN_TASK_ID + "=?", new String[]{String.valueOf(taskId)},
+                null, null, null);
+
+        if (cursor != null && cursor.moveToFirst()) {
+            taskTitle = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TASK_TITLE));
+            cursor.close();
+        }
+
+        if (taskTitle != null) {
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_HISTORY_USER_ID, userId);
+            values.put(COLUMN_HISTORY_TASK_ID, taskId);
+            values.put(COLUMN_TASK_TITLE, taskTitle); // Insert the task title into the history table
+
+            long result = db.insert(TABLE_HISTORY, null, values);
+            if (result == -1) {
+                Log.e("Database", "Failed to insert history for userId: " + userId + ", taskId: " + taskId + ", taskTitle: " + taskTitle);
+            } else {
+                Log.d("Database", "History inserted successfully: UserId=" + userId + ", TaskId=" + taskId + ", TaskTitle=" + taskTitle);
+            }
+        } else {
+            Log.e("Database", "Task title is null for TaskId=" + taskId);
+        }
+
+        db.close();
+    }
+
+
+
+    public Cursor getTaskHistory() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        return db.query(TABLE_HISTORY, null, null, null, null, null, COLUMN_HISTORY_TIMESTAMP + " DESC");
+    }
+    public Cursor getPendingTasksByUser(int userId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        return db.query(TABLE_TASKS, null,
+                COLUMN_ASSIGNED_USER_ID + "=? AND " + COLUMN_TASK_COMPLETED + "=0",
+                new String[]{String.valueOf(userId)}, null, null, COLUMN_TASK_DEADLINE + " ASC");
+    }
+    public Cursor getTaskHistoryByUser(int userId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        String query = "SELECT " + COLUMN_TASK_TITLE + ", " + COLUMN_HISTORY_TIMESTAMP +
+                " FROM " + TABLE_HISTORY +
+                " WHERE " + COLUMN_HISTORY_USER_ID + "=? " +
+                " ORDER BY " + COLUMN_HISTORY_TIMESTAMP + " DESC";
+
+        Cursor cursor = db.rawQuery(query, new String[]{String.valueOf(userId)});
+
+        if (cursor != null) {
+            Log.d("Database", "Fetched history for userId=" + userId + ", Count=" + cursor.getCount());
+        } else {
+            Log.e("Database", "Failed to fetch history for userId=" + userId);
+        }
+
+        return cursor;
+    }
+
+
+
     public Cursor getUserById(int userId) {
         SQLiteDatabase db = this.getReadableDatabase();
         return db.query(TABLE_USERS, null, COLUMN_USER_ID + "=?",
                 new String[]{String.valueOf(userId)}, null, null, null);
     }
+
+    public void markTaskAsCompleted(int taskId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_TASK_COMPLETED, 1); // Mark as completed
+        db.update(TABLE_TASKS, values, COLUMN_TASK_ID + "=?", new String[]{String.valueOf(taskId)});
+        db.close();
+    }
+
     public void debugUsers() {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_USERS, null);

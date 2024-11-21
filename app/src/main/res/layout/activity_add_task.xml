@@ -14,6 +14,13 @@
         android:textSize="16sp"
         android:padding="8dp" />
 
+    <EditText
+        android:id="@+id/editTextTaskTitleEditText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Task Title"
+        android:inputType="text" />
+
     <!-- Task Description Input -->
     <EditText
         android:id="@+id/editTextTaskDescription"

@@ -1,5 +1,6 @@
 package com.example.app_dizertatie;
 
+import android.database.Cursor;
 import android.os.Bundle;
 import android.content.Intent;
 import android.os.Bundle;
@@ -36,7 +37,6 @@ public class MainActivity extends AppCompatActivity {
         Button buttonLogin = findViewById(R.id.buttonLogin);
         Button buttonRegister = findViewById(R.id.buttonRegister);
 
-        // Set Login Button Click Listener
         buttonLogin.setOnClickListener(v -> {
             String username = editTextUsername.getText().toString();
             String password = editTextPassword.getText().toString();
@@ -68,15 +68,34 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(MainActivity.this, "Failed to retrieve department information", Toast.LENGTH_SHORT).show();
                     }
                 } else {
-                    Log.d("MainActivity", "Navigating to UserActivity for user: " + username);
-                    startActivity(new Intent(MainActivity.this, UserActivity.class));
-                    finish();
+                    // Retrieve the userId for the logged-in user
+                    Cursor cursor = db.getUserByUsername(username); // Fetch by username
+                    // Modify this method to retrieve by username
+                    int userId = -1;
+                    if (cursor != null && cursor.moveToFirst()) {
+                        userId = cursor.getInt(cursor.getColumnIndexOrThrow(DataBaseHelper.COLUMN_USER_ID));
+                        cursor.close();
+                    }
+
+                    if (userId != -1) {
+                        Log.d("MainActivity", "Navigating to UserActivity for user: " + username + " with userId: " + userId);
+
+                        // Pass userId to UserActivity
+                        Intent intent = new Intent(MainActivity.this, UserActivity.class);
+                        intent.putExtra("userId", userId);
+                        startActivity(intent);
+                        finish();
+                    } else {
+                        Log.d("MainActivity", "Failed to retrieve userId for Username: " + username);
+                        Toast.makeText(MainActivity.this, "Error retrieving user information", Toast.LENGTH_SHORT).show();
+                    }
                 }
             } else {
                 Log.d("MainActivity", "Invalid credentials for Username: " + username);
                 Toast.makeText(MainActivity.this, "Invalid credentials", Toast.LENGTH_SHORT).show();
             }
         });
+
 
         // Set Register Button Click Listener
         buttonRegister.setOnClickListener(v -> {

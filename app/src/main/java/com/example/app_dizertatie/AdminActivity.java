@@ -44,7 +44,7 @@ public class AdminActivity extends AppCompatActivity {
         // Load users in the admin's department
         loadUsers(adminDepartmentId);
 
-        // Handle user click
+        // Handle user click in ListView
         listViewUsers.setOnItemClickListener((adapterView, view, position, id) -> {
             int userId = userIdList.get(position);
             if (userId == -1) {
@@ -57,6 +57,7 @@ public class AdminActivity extends AppCompatActivity {
             intent.putExtra("userId", userId);
             startActivity(intent);
         });
+
     }
 
     private void loadUsers(int departmentId) {

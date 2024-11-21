@@ -17,7 +17,7 @@ public class AddTaskActivity extends AppCompatActivity {
     private int departmentId;
 
     private TextView textViewUsername;
-    private EditText editTextTaskDescription, editTextDeadline;
+    private EditText editTextTaskDescription, editTextDeadline, editTextTaskTitleEditText;
     private Button buttonAddTask;
 
     @Override
@@ -45,26 +45,32 @@ public class AddTaskActivity extends AppCompatActivity {
 
         // Initialize views
         textViewUsername = findViewById(R.id.textViewUsername);
-        editTextTaskDescription = findViewById(R.id.editTextTaskDescription);
-        editTextDeadline = findViewById(R.id.editTextDeadline);
-        buttonAddTask = findViewById(R.id.buttonAddTask);
+        editTextTaskTitleEditText = findViewById(R.id.editTextTaskTitleEditText); // Task title input field
+        editTextTaskDescription = findViewById(R.id.editTextTaskDescription); // Task description input field
+        editTextDeadline = findViewById(R.id.editTextDeadline); // Deadline input field
+        buttonAddTask = findViewById(R.id.buttonAddTask); // Add task button
 
         // Display username
         textViewUsername.setText("Assigning task to: " + username);
 
         // Add task button functionality
         buttonAddTask.setOnClickListener(v -> {
+            String taskTitle = editTextTaskTitleEditText.getText().toString().trim(); // Fetch task title when button is clicked
             String taskDescription = editTextTaskDescription.getText().toString().trim();
             String deadline = editTextDeadline.getText().toString().trim();
 
             // Validate input
+            if (taskTitle.isEmpty()) {
+                Toast.makeText(AddTaskActivity.this, "Task title cannot be empty", Toast.LENGTH_SHORT).show();
+                return;
+            }
             if (taskDescription.isEmpty()) {
                 Toast.makeText(AddTaskActivity.this, "Task description cannot be empty", Toast.LENGTH_SHORT).show();
                 return;
             }
 
             // Insert task into database
-            long result = db.addTaskWithDeadline("Task Title", taskDescription, deadline.isEmpty() ? null : deadline, userId, departmentId);
+            long result = db.addTaskWithDeadline(taskTitle, taskDescription, deadline.isEmpty() ? null : deadline, userId, departmentId);
             if (result == -1) {
                 Log.e("AddTaskActivity", "Failed to insert task into database");
                 Toast.makeText(AddTaskActivity.this, "Failed to add task. Try again.", Toast.LENGTH_SHORT).show();
