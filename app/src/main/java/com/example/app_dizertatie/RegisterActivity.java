@@ -12,6 +12,8 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
@@ -20,7 +22,11 @@ import java.util.Map;
 
 public class RegisterActivity extends AppCompatActivity {
 
-    private FirebaseFirestore db;
+    private static final String TAG = "RegisterActivity";
+
+    private FirebaseAuth auth; // Firebase Authentication instance
+    private FirebaseFirestore db; // Firestore instance
+
     private EditText editTextRegisterUsername, editTextRegisterPassword, editTextRegisterEmail, editTextDepartmentName;
     private Spinner spinnerRole, spinnerDepartment;
     private Button buttonSubmitRegister;
@@ -33,13 +39,14 @@ public class RegisterActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
 
-        // Initialize Firestore
+        // Initialize Firebase
+        auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
         // Initialize views
         editTextRegisterUsername = findViewById(R.id.editTextRegisterUsername);
         editTextRegisterPassword = findViewById(R.id.editTextRegisterPassword);
-        editTextRegisterEmail = findViewById(R.id.editTextRegisterEmail); // New email field
+        editTextRegisterEmail = findViewById(R.id.editTextRegisterEmail);
         editTextDepartmentName = findViewById(R.id.editTextDepartmentName);
         spinnerRole = findViewById(R.id.spinnerRole);
         spinnerDepartment = findViewById(R.id.spinnerDepartment);
@@ -93,7 +100,7 @@ public class RegisterActivity extends AppCompatActivity {
         buttonSubmitRegister.setOnClickListener(v -> {
             String username = editTextRegisterUsername.getText().toString().trim();
             String password = editTextRegisterPassword.getText().toString().trim();
-            String email = editTextRegisterEmail.getText().toString().trim(); // Collect email
+            String email = editTextRegisterEmail.getText().toString().trim();
             String role = spinnerRole.getSelectedItem().toString();
 
             if (username.isEmpty() || password.isEmpty() || email.isEmpty()) {
@@ -104,13 +111,11 @@ public class RegisterActivity extends AppCompatActivity {
             if (role.equals("Admin")) {
                 String departmentName = editTextDepartmentName.getText().toString().trim();
                 if (!departmentName.isEmpty()) {
-                    // Add new admin and department
                     addAdminWithDepartment(username, email, password, departmentName);
                 } else {
                     Toast.makeText(this, "Please specify a department name for the admin.", Toast.LENGTH_SHORT).show();
                 }
             } else {
-                // Add regular user
                 String departmentName = spinnerDepartment.getSelectedItem().toString();
                 if (!departmentName.isEmpty()) {
                     addUser(username, email, password, role, departmentName);
@@ -130,10 +135,10 @@ public class RegisterActivity extends AppCompatActivity {
                     adminExists = !queryDocumentSnapshots.isEmpty();
                     isAdminCheckComplete = true;
                     spinnerRole.setEnabled(true); // Enable spinner after check is complete
-                    Log.d("RegisterActivity", "Admin exists: " + adminExists);
+                    Log.d(TAG, "Admin exists: " + adminExists);
                 })
                 .addOnFailureListener(e -> {
-                    Log.e("RegisterActivity", "Error checking for admin existence", e);
+                    Log.e(TAG, "Error checking for admin existence", e);
                     adminExists = false; // Default to false on error
                     isAdminCheckComplete = true;
                     spinnerRole.setEnabled(true); // Enable spinner after check is complete
@@ -141,32 +146,40 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void addAdminWithDepartment(String username, String email, String password, String departmentName) {
-        Map<String, Object> departmentData = new HashMap<>();
-        departmentData.put("department_name", departmentName);
+        db.collection("departments").add(Map.of("department_name", departmentName))
+                .addOnSuccessListener(departmentRef -> {
+                    String departmentId = departmentRef.getId();
 
-        db.collection("departments").add(departmentData)
-                .addOnSuccessListener(documentReference -> {
-                    String departmentId = documentReference.getId();
+                    auth.createUserWithEmailAndPassword(email, password)
+                            .addOnSuccessListener(authResult -> {
+                                FirebaseUser firebaseUser = authResult.getUser();
+                                if (firebaseUser != null) {
+                                    String uid = firebaseUser.getUid();
+                                    Map<String, Object> userData = new HashMap<>();
+                                    userData.put("username", username);
+                                    userData.put("email", email);
+                                    userData.put("role", "Admin");
+                                    userData.put("department_id", departmentId);
 
-                    Map<String, Object> userData = new HashMap<>();
-                    userData.put("username", username);
-                    userData.put("email", email);
-                    userData.put("password", password);
-                    userData.put("role", "Admin");
-                    userData.put("department_id", departmentId);
-
-                    db.collection("users").add(userData)
-                            .addOnSuccessListener(userRef -> {
-                                Toast.makeText(this, "Admin registered successfully.", Toast.LENGTH_SHORT).show();
-                                finish();
+                                    db.collection("users").document(uid)
+                                            .set(userData)
+                                            .addOnSuccessListener(aVoid -> {
+                                                Toast.makeText(this, "Admin registered successfully.", Toast.LENGTH_SHORT).show();
+                                                finish();
+                                            })
+                                            .addOnFailureListener(e -> {
+                                                Log.e(TAG, "Error saving admin data", e);
+                                                Toast.makeText(this, "Failed to save admin data.", Toast.LENGTH_SHORT).show();
+                                            });
+                                }
                             })
                             .addOnFailureListener(e -> {
-                                Log.e("RegisterActivity", "Error registering admin", e);
-                                Toast.makeText(this, "Failed to register admin.", Toast.LENGTH_SHORT).show();
+                                Log.e(TAG, "Error creating admin user", e);
+                                Toast.makeText(this, "Failed to register admin. Try again.", Toast.LENGTH_SHORT).show();
                             });
                 })
                 .addOnFailureListener(e -> {
-                    Log.e("RegisterActivity", "Error adding department", e);
+                    Log.e(TAG, "Error adding department", e);
                     Toast.makeText(this, "Failed to add department.", Toast.LENGTH_SHORT).show();
                 });
     }
@@ -179,28 +192,39 @@ public class RegisterActivity extends AppCompatActivity {
                     if (!queryDocumentSnapshots.isEmpty()) {
                         String departmentId = queryDocumentSnapshots.getDocuments().get(0).getId();
 
-                        Map<String, Object> userData = new HashMap<>();
-                        userData.put("username", username);
-                        userData.put("email", email);
-                        userData.put("password", password);
-                        userData.put("role", role);
-                        userData.put("department_id", departmentId);
+                        auth.createUserWithEmailAndPassword(email, password)
+                                .addOnSuccessListener(authResult -> {
+                                    FirebaseUser firebaseUser = authResult.getUser();
+                                    if (firebaseUser != null) {
+                                        String uid = firebaseUser.getUid();
+                                        Map<String, Object> userData = new HashMap<>();
+                                        userData.put("username", username);
+                                        userData.put("email", email);
+                                        userData.put("role", role);
+                                        userData.put("department_id", departmentId);
 
-                        db.collection("users").add(userData)
-                                .addOnSuccessListener(userRef -> {
-                                    Toast.makeText(this, "User registered successfully.", Toast.LENGTH_SHORT).show();
-                                    finish();
+                                        db.collection("users").document(uid)
+                                                .set(userData)
+                                                .addOnSuccessListener(aVoid -> {
+                                                    Toast.makeText(this, "User registered successfully.", Toast.LENGTH_SHORT).show();
+                                                    finish();
+                                                })
+                                                .addOnFailureListener(e -> {
+                                                    Log.e(TAG, "Error saving user data", e);
+                                                    Toast.makeText(this, "Failed to save user data.", Toast.LENGTH_SHORT).show();
+                                                });
+                                    }
                                 })
                                 .addOnFailureListener(e -> {
-                                    Log.e("RegisterActivity", "Error registering user", e);
-                                    Toast.makeText(this, "Failed to register user.", Toast.LENGTH_SHORT).show();
+                                    Log.e(TAG, "Error creating user", e);
+                                    Toast.makeText(this, "Failed to register user. Try again.", Toast.LENGTH_SHORT).show();
                                 });
                     } else {
                         Toast.makeText(this, "Department not found.", Toast.LENGTH_SHORT).show();
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e("RegisterActivity", "Error finding department", e);
+                    Log.e(TAG, "Error finding department", e);
                     Toast.makeText(this, "Error finding department.", Toast.LENGTH_SHORT).show();
                 });
     }
@@ -218,6 +242,6 @@ public class RegisterActivity extends AppCompatActivity {
                     departmentAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                     spinnerDepartment.setAdapter(departmentAdapter);
                 })
-                .addOnFailureListener(e -> Log.e("RegisterActivity", "Error loading departments", e));
+                .addOnFailureListener(e -> Log.e(TAG, "Error loading departments", e));
     }
 }
