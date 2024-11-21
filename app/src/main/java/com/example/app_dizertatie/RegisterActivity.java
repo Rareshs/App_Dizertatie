@@ -1,7 +1,7 @@
 package com.example.app_dizertatie;
 
-import android.database.Cursor;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -9,33 +9,45 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.AdapterView;
 import android.widget.Toast;
-import android.util.Log;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.firestore.FirebaseFirestore;
+
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 public class RegisterActivity extends AppCompatActivity {
 
-    private DataBaseHelper db;
-    private EditText editTextRegisterUsername, editTextRegisterPassword, editTextDepartmentName;
+    private FirebaseFirestore db;
+    private EditText editTextRegisterUsername, editTextRegisterPassword, editTextRegisterEmail, editTextDepartmentName;
     private Spinner spinnerRole, spinnerDepartment;
     private Button buttonSubmitRegister;
+
+    private boolean adminExists = false; // Track if an admin exists
+    private boolean isAdminCheckComplete = false; // Track if the admin check is complete
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
 
-        db = new DataBaseHelper(this);
+        // Initialize Firestore
+        db = FirebaseFirestore.getInstance();
 
         // Initialize views
         editTextRegisterUsername = findViewById(R.id.editTextRegisterUsername);
         editTextRegisterPassword = findViewById(R.id.editTextRegisterPassword);
-        editTextDepartmentName = findViewById(R.id.editTextDepartmentName); // For new department name
+        editTextRegisterEmail = findViewById(R.id.editTextRegisterEmail); // New email field
+        editTextDepartmentName = findViewById(R.id.editTextDepartmentName);
         spinnerRole = findViewById(R.id.spinnerRole);
         spinnerDepartment = findViewById(R.id.spinnerDepartment);
         buttonSubmitRegister = findViewById(R.id.buttonSubmitRegister);
+
+        // Disable spinner until admin check is complete
+        spinnerRole.setEnabled(false);
+        checkIfAdminExists();
 
         // Set up the role Spinner with the roles array
         ArrayAdapter<CharSequence> roleAdapter = ArrayAdapter.createFromResource(this,
@@ -43,23 +55,31 @@ public class RegisterActivity extends AppCompatActivity {
         roleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerRole.setAdapter(roleAdapter);
 
-        // Set up role-based department visibility
+        // Role-based department visibility
         spinnerRole.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 String role = parent.getItemAtPosition(position).toString();
+
+                if (!isAdminCheckComplete) {
+                    Toast.makeText(RegisterActivity.this, "Checking for admin... Please wait.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
                 if (role.equals("Admin")) {
                     editTextDepartmentName.setVisibility(View.VISIBLE);
                     spinnerDepartment.setVisibility(View.GONE);
                 } else {
-                    editTextDepartmentName.setVisibility(View.GONE);
-                    if (db.hasDepartments()) {
-                        populateDepartmentSpinner();
-                        spinnerDepartment.setVisibility(View.VISIBLE);
-                    } else {
-                        Toast.makeText(RegisterActivity.this, "No departments available. Please contact an admin.", Toast.LENGTH_LONG).show();
-                        spinnerDepartment.setVisibility(View.GONE);
+                    if (!adminExists) {
+                        // Warn and reset the spinner if no admin exists
+                        Toast.makeText(RegisterActivity.this, "An admin must be created before adding users.", Toast.LENGTH_LONG).show();
+                        spinnerRole.setSelection(0); // Reset to "Admin"
+                        return;
                     }
+
+                    editTextDepartmentName.setVisibility(View.GONE);
+                    populateDepartmentSpinner();
+                    spinnerDepartment.setVisibility(View.VISIBLE);
                 }
             }
 
@@ -71,74 +91,133 @@ public class RegisterActivity extends AppCompatActivity {
 
         // Register button functionality
         buttonSubmitRegister.setOnClickListener(v -> {
-            String username = editTextRegisterUsername.getText().toString();
-            String password = editTextRegisterPassword.getText().toString();
+            String username = editTextRegisterUsername.getText().toString().trim();
+            String password = editTextRegisterPassword.getText().toString().trim();
+            String email = editTextRegisterEmail.getText().toString().trim(); // Collect email
             String role = spinnerRole.getSelectedItem().toString();
 
-            if (username.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "Username and Password cannot be empty.", Toast.LENGTH_SHORT).show();
+            if (username.isEmpty() || password.isEmpty() || email.isEmpty()) {
+                Toast.makeText(this, "All fields are required.", Toast.LENGTH_SHORT).show();
                 return;
             }
 
             if (role.equals("Admin")) {
-                String departmentName = editTextDepartmentName.getText().toString();
+                String departmentName = editTextDepartmentName.getText().toString().trim();
                 if (!departmentName.isEmpty()) {
-                    // Add the department and retrieve its ID
-                    long departmentId = db.addDepartment(departmentName);
-                    if (departmentId != -1) {
-                        // Associate the admin with the department
-                        db.addUser(username, password, role, (int) departmentId);
-                        Toast.makeText(this, "Admin registered successfully.", Toast.LENGTH_SHORT).show();
-                        finish();
-                    } else {
-                        Toast.makeText(this, "Failed to add department.", Toast.LENGTH_SHORT).show();
-                    }
+                    // Add new admin and department
+                    addAdminWithDepartment(username, email, password, departmentName);
                 } else {
                     Toast.makeText(this, "Please specify a department name for the admin.", Toast.LENGTH_SHORT).show();
                 }
-
             } else {
-                if (db.hasDepartments()) {
-                    String departmentName = spinnerDepartment.getSelectedItem().toString();
-                    int departmentId = db.getDepartmentId(departmentName);
-                    if (departmentId != -1) {
-                        db.addUser(username, password, role, departmentId);
-                        Toast.makeText(this, "User registered successfully.", Toast.LENGTH_SHORT).show();
-                        finish();
-                    } else {
-                        Toast.makeText(this, "Failed to retrieve selected department.", Toast.LENGTH_SHORT).show();
-                    }
+                // Add regular user
+                String departmentName = spinnerDepartment.getSelectedItem().toString();
+                if (!departmentName.isEmpty()) {
+                    addUser(username, email, password, role, departmentName);
                 } else {
-                    Toast.makeText(this, "No departments available. Please contact an admin.", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Please select a department.", Toast.LENGTH_SHORT).show();
                 }
             }
         });
     }
 
-    // Populate the department spinner
+    // Check if at least one admin exists
+    private void checkIfAdminExists() {
+        db.collection("users")
+                .whereEqualTo("role", "Admin")
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    adminExists = !queryDocumentSnapshots.isEmpty();
+                    isAdminCheckComplete = true;
+                    spinnerRole.setEnabled(true); // Enable spinner after check is complete
+                    Log.d("RegisterActivity", "Admin exists: " + adminExists);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("RegisterActivity", "Error checking for admin existence", e);
+                    adminExists = false; // Default to false on error
+                    isAdminCheckComplete = true;
+                    spinnerRole.setEnabled(true); // Enable spinner after check is complete
+                });
+    }
+
+    private void addAdminWithDepartment(String username, String email, String password, String departmentName) {
+        Map<String, Object> departmentData = new HashMap<>();
+        departmentData.put("department_name", departmentName);
+
+        db.collection("departments").add(departmentData)
+                .addOnSuccessListener(documentReference -> {
+                    String departmentId = documentReference.getId();
+
+                    Map<String, Object> userData = new HashMap<>();
+                    userData.put("username", username);
+                    userData.put("email", email);
+                    userData.put("password", password);
+                    userData.put("role", "Admin");
+                    userData.put("department_id", departmentId);
+
+                    db.collection("users").add(userData)
+                            .addOnSuccessListener(userRef -> {
+                                Toast.makeText(this, "Admin registered successfully.", Toast.LENGTH_SHORT).show();
+                                finish();
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e("RegisterActivity", "Error registering admin", e);
+                                Toast.makeText(this, "Failed to register admin.", Toast.LENGTH_SHORT).show();
+                            });
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("RegisterActivity", "Error adding department", e);
+                    Toast.makeText(this, "Failed to add department.", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void addUser(String username, String email, String password, String role, String departmentName) {
+        db.collection("departments")
+                .whereEqualTo("department_name", departmentName)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        String departmentId = queryDocumentSnapshots.getDocuments().get(0).getId();
+
+                        Map<String, Object> userData = new HashMap<>();
+                        userData.put("username", username);
+                        userData.put("email", email);
+                        userData.put("password", password);
+                        userData.put("role", role);
+                        userData.put("department_id", departmentId);
+
+                        db.collection("users").add(userData)
+                                .addOnSuccessListener(userRef -> {
+                                    Toast.makeText(this, "User registered successfully.", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e("RegisterActivity", "Error registering user", e);
+                                    Toast.makeText(this, "Failed to register user.", Toast.LENGTH_SHORT).show();
+                                });
+                    } else {
+                        Toast.makeText(this, "Department not found.", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("RegisterActivity", "Error finding department", e);
+                    Toast.makeText(this, "Error finding department.", Toast.LENGTH_SHORT).show();
+                });
+    }
+
     private void populateDepartmentSpinner() {
-        ArrayList<String> departmentList = new ArrayList<>();
-        Cursor cursor = db.getAllDepartments();
+        db.collection("departments").get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    ArrayList<String> departmentList = new ArrayList<>();
+                    queryDocumentSnapshots.forEach(document -> {
+                        String departmentName = document.getString("department_name");
+                        departmentList.add(departmentName);
+                    });
 
-        if (cursor != null && cursor.moveToFirst()) {
-            do {
-                int columnIndex = cursor.getColumnIndex(DataBaseHelper.COLUMN_DEPARTMENT_NAME);
-                if (columnIndex != -1) {
-                    String departmentName = cursor.getString(columnIndex);
-                    departmentList.add(departmentName);
-                }
-            } while (cursor.moveToNext());
-            cursor.close();
-        }
-
-        if (departmentList.isEmpty()) {
-            Log.d("RegisterActivity", "No departments found in the database.");
-        } else {
-            Log.d("RegisterActivity", "Departments loaded: " + departmentList);
-        }
-
-        ArrayAdapter<String> departmentAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, departmentList);
-        departmentAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerDepartment.setAdapter(departmentAdapter);
+                    ArrayAdapter<String> departmentAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, departmentList);
+                    departmentAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                    spinnerDepartment.setAdapter(departmentAdapter);
+                })
+                .addOnFailureListener(e -> Log.e("RegisterActivity", "Error loading departments", e));
     }
 }

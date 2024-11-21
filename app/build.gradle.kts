@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.androidApplication)
-}
+    }
 
 android {
     namespace = "com.example.app_dizertatie"
@@ -32,7 +32,6 @@ android {
 }
 
 dependencies {
-
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
@@ -40,4 +39,16 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+
+    // Add Firebase BOM (Bill of Materials)
+    implementation(platform("com.google.firebase:firebase-bom:32.0.0"))
+
+    // Firebase libraries
+    implementation("com.google.firebase:firebase-auth-ktx") // Authentication
+    implementation("com.google.firebase:firebase-firestore-ktx") // Firestore
+    implementation("com.google.firebase:firebase-database-ktx") // Realtime Database
+    implementation("com.google.firebase:firebase-storage-ktx") // Cloud Storage
 }
+
+// Apply Google Services plugin
+apply(plugin = "com.google.gms.google-services")

@@ -1,7 +1,5 @@
 package com.example.app_dizertatie;
 
-import android.database.Cursor;
-import android.os.Bundle;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -9,99 +7,125 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 public class MainActivity extends AppCompatActivity {
 
-    private DataBaseHelper db;
-    private EditText editTextUsername, editTextPassword;
+    private FirebaseAuth auth; // Firebase Authentication instance
+    private FirebaseFirestore db; // Firestore instance
+    private EditText editTextEmail, editTextPassword;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Initialize Database Helper
-        db = new DataBaseHelper(this);
-
-        // Debug the users in the database
-        db.debugUsers();
+        // Initialize Firebase instances
+        auth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
 
         // Find Views
-        editTextUsername = findViewById(R.id.editTextUsername);
+        editTextEmail = findViewById(R.id.editTextUsername); // Ensure this matches XML
         editTextPassword = findViewById(R.id.editTextPassword);
         Button buttonLogin = findViewById(R.id.buttonLogin);
         Button buttonRegister = findViewById(R.id.buttonRegister);
 
+        // Login Button Click Listener
         buttonLogin.setOnClickListener(v -> {
-            String username = editTextUsername.getText().toString();
-            String password = editTextPassword.getText().toString();
+            String email = editTextEmail.getText().toString().trim();
+            String password = editTextPassword.getText().toString().trim();
 
-            // Debug login credentials
-            Log.d("MainActivity", "Attempting login with Username: " + username + ", Password: " + password);
-
-            // Check user role in the database
-            String role = db.getUserRole(username, password);
-            Log.d("MainActivity", "Role retrieved for user: " + role);
-
-            if (role != null) {
-                if (role.equals("Admin")) {
-                    // Retrieve the department ID for the logged-in admin
-                    int adminDepartmentId = db.getAdminDepartmentId(username);
-                    String departmentName = db.getDepartmentName(adminDepartmentId);
-
-                    // Debug the department information
-                    Log.d("MainActivity", "Admin Department ID: " + adminDepartmentId + ", Department Name: " + departmentName);
-
-                    if (adminDepartmentId != -1) {
-                        // Pass department info to AdminActivity
-                        Intent intent = new Intent(MainActivity.this, AdminActivity.class);
-                        intent.putExtra("departmentId", adminDepartmentId);
-                        intent.putExtra("departmentName", departmentName);
-                        startActivity(intent);
-                        finish();
-                    } else {
-                        Toast.makeText(MainActivity.this, "Failed to retrieve department information", Toast.LENGTH_SHORT).show();
-                    }
-                } else {
-                    // Retrieve the userId for the logged-in user
-                    Cursor cursor = db.getUserByUsername(username); // Fetch by username
-                    // Modify this method to retrieve by username
-                    int userId = -1;
-                    if (cursor != null && cursor.moveToFirst()) {
-                        userId = cursor.getInt(cursor.getColumnIndexOrThrow(DataBaseHelper.COLUMN_USER_ID));
-                        cursor.close();
-                    }
-
-                    if (userId != -1) {
-                        Log.d("MainActivity", "Navigating to UserActivity for user: " + username + " with userId: " + userId);
-
-                        // Pass userId to UserActivity
-                        Intent intent = new Intent(MainActivity.this, UserActivity.class);
-                        intent.putExtra("userId", userId);
-                        startActivity(intent);
-                        finish();
-                    } else {
-                        Log.d("MainActivity", "Failed to retrieve userId for Username: " + username);
-                        Toast.makeText(MainActivity.this, "Error retrieving user information", Toast.LENGTH_SHORT).show();
-                    }
-                }
-            } else {
-                Log.d("MainActivity", "Invalid credentials for Username: " + username);
-                Toast.makeText(MainActivity.this, "Invalid credentials", Toast.LENGTH_SHORT).show();
+            // Validate input fields
+            if (email.isEmpty() || password.isEmpty()) {
+                Toast.makeText(MainActivity.this, "Email and password cannot be empty", Toast.LENGTH_SHORT).show();
+                return;
             }
+
+            // Validate email format
+            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                Toast.makeText(MainActivity.this, "Please enter a valid email address", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Log in user using FirebaseAuth
+            auth.signInWithEmailAndPassword(email, password)
+                    .addOnSuccessListener(authResult -> {
+                        String uid = authResult.getUser().getUid();
+
+                        // Fetch additional user details (role, department, etc.) from Firestore
+                        db.collection("users").document(uid).get()
+                                .addOnSuccessListener(documentSnapshot -> {
+                                    if (documentSnapshot.exists()) {
+                                        String role = documentSnapshot.getString("role");
+                                        Log.d("MainActivity", "User role: " + role);
+
+                                        if (role != null) {
+                                            if (role.equals("Admin")) {
+                                                String departmentId = documentSnapshot.getString("department_id");
+
+                                                if (departmentId != null) {
+                                                    // Fetch department name
+                                                    db.collection("departments").document(departmentId).get()
+                                                            .addOnSuccessListener(departmentDoc -> {
+                                                                if (departmentDoc.exists()) {
+                                                                    String departmentName = departmentDoc.getString("department_name");
+                                                                    Log.d("MainActivity", "Admin logged in with Department ID: " + departmentId + " and Name: " + departmentName);
+
+                                                                    // Navigate to AdminActivity with department details
+                                                                    Intent intent = new Intent(MainActivity.this, AdminActivity.class);
+                                                                    intent.putExtra("departmentId", departmentId);
+                                                                    intent.putExtra("departmentName", departmentName);
+                                                                    startActivity(intent);
+                                                                    finish();
+                                                                } else {
+                                                                    Log.e("MainActivity", "Department not found for departmentId: " + departmentId);
+                                                                    Toast.makeText(MainActivity.this, "Failed to fetch department details", Toast.LENGTH_SHORT).show();
+                                                                }
+                                                            })
+                                                            .addOnFailureListener(e -> {
+                                                                Log.e("MainActivity", "Error fetching department details", e);
+                                                                Toast.makeText(MainActivity.this, "Error fetching department details", Toast.LENGTH_SHORT).show();
+                                                            });
+                                                } else {
+                                                    Log.e("MainActivity", "Admin missing department ID");
+                                                    Toast.makeText(MainActivity.this, "Admin department ID not found.", Toast.LENGTH_SHORT).show();
+                                                }
+                                            } else {
+                                                Log.d("MainActivity", "User logged in with UID: " + uid);
+
+                                                // Navigate to UserActivity with user ID
+                                                Intent intent = new Intent(MainActivity.this, UserActivity.class);
+                                                intent.putExtra("userId", uid);
+                                                startActivity(intent);
+                                                finish();
+                                            }
+                                        } else {
+                                            Log.e("MainActivity", "Role not found for user: " + uid);
+                                            Toast.makeText(MainActivity.this, "User role not found", Toast.LENGTH_SHORT).show();
+                                        }
+                                    } else {
+                                        Log.e("MainActivity", "User document not found for UID: " + uid);
+                                        Toast.makeText(MainActivity.this, "User details not found", Toast.LENGTH_SHORT).show();
+                                    }
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e("MainActivity", "Error fetching user details", e);
+                                    Toast.makeText(MainActivity.this, "Error logging in", Toast.LENGTH_SHORT).show();
+                                });
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e("MainActivity", "Login failed", e);
+                        Toast.makeText(MainActivity.this, "Invalid email or password", Toast.LENGTH_SHORT).show();
+                    });
         });
 
-
-        // Set Register Button Click Listener
+        // Register Button Click Listener
         buttonRegister.setOnClickListener(v -> {
-            // Redirect to Register Activity
+            // Redirect to RegisterActivity
             startActivity(new Intent(MainActivity.this, RegisterActivity.class));
         });
     }
-
 }

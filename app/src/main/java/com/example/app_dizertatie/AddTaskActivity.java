@@ -9,15 +9,24 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.Timestamp;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
 public class AddTaskActivity extends AppCompatActivity {
 
-    private DataBaseHelper db;
-    private int userId;
+    private FirebaseFirestore db; // Firestore instance
+    private String userId;
     private String username;
-    private int departmentId;
+    private String departmentId;
 
     private TextView textViewUsername;
-    private EditText editTextTaskDescription, editTextDeadline, editTextTaskTitleEditText;
+    private EditText editTextTaskTitle, editTextTaskDescription, editTextDeadline;
     private Button buttonAddTask;
 
     @Override
@@ -25,18 +34,19 @@ public class AddTaskActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_task);
 
-        db = new DataBaseHelper(this);
+        // Initialize Firestore
+        db = FirebaseFirestore.getInstance();
 
         // Retrieve userId, username, and departmentId from intent
-        userId = getIntent().getIntExtra("userId", -1);
+        userId = getIntent().getStringExtra("userId");
         username = getIntent().getStringExtra("username");
-        departmentId = getIntent().getIntExtra("departmentId", -1);
+        departmentId = getIntent().getStringExtra("departmentId");
 
         // Log values to debug
         Log.d("AddTaskActivity", "Received userId: " + userId + ", username: " + username + ", departmentId: " + departmentId);
 
         // Check for invalid data
-        if (userId == -1 || username == null || username.isEmpty() || departmentId == -1) {
+        if (userId == null || userId.isEmpty() || username == null || username.isEmpty() || departmentId == null || departmentId.isEmpty()) {
             Log.e("AddTaskActivity", "Invalid data passed to AddTaskActivity");
             Toast.makeText(this, "Invalid user or department information", Toast.LENGTH_SHORT).show();
             finish();
@@ -45,17 +55,17 @@ public class AddTaskActivity extends AppCompatActivity {
 
         // Initialize views
         textViewUsername = findViewById(R.id.textViewUsername);
-        editTextTaskTitleEditText = findViewById(R.id.editTextTaskTitleEditText); // Task title input field
-        editTextTaskDescription = findViewById(R.id.editTextTaskDescription); // Task description input field
-        editTextDeadline = findViewById(R.id.editTextDeadline); // Deadline input field
-        buttonAddTask = findViewById(R.id.buttonAddTask); // Add task button
+        editTextTaskTitle = findViewById(R.id.editTextTaskTitleEditText);
+        editTextTaskDescription = findViewById(R.id.editTextTaskDescription);
+        editTextDeadline = findViewById(R.id.editTextDeadline);
+        buttonAddTask = findViewById(R.id.buttonAddTask);
 
         // Display username
         textViewUsername.setText("Assigning task to: " + username);
 
         // Add task button functionality
         buttonAddTask.setOnClickListener(v -> {
-            String taskTitle = editTextTaskTitleEditText.getText().toString().trim(); // Fetch task title when button is clicked
+            String taskTitle = editTextTaskTitle.getText().toString().trim();
             String taskDescription = editTextTaskDescription.getText().toString().trim();
             String deadline = editTextDeadline.getText().toString().trim();
 
@@ -64,21 +74,47 @@ public class AddTaskActivity extends AppCompatActivity {
                 Toast.makeText(AddTaskActivity.this, "Task title cannot be empty", Toast.LENGTH_SHORT).show();
                 return;
             }
+
             if (taskDescription.isEmpty()) {
                 Toast.makeText(AddTaskActivity.this, "Task description cannot be empty", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // Insert task into database
-            long result = db.addTaskWithDeadline(taskTitle, taskDescription, deadline.isEmpty() ? null : deadline, userId, departmentId);
-            if (result == -1) {
-                Log.e("AddTaskActivity", "Failed to insert task into database");
-                Toast.makeText(AddTaskActivity.this, "Failed to add task. Try again.", Toast.LENGTH_SHORT).show();
-            } else {
-                Log.d("AddTaskActivity", "Task added successfully for userId: " + userId);
-                Toast.makeText(AddTaskActivity.this, "Task added successfully", Toast.LENGTH_SHORT).show();
-                finish(); // Return to UserTasksActivity
+            // Parse the deadline if provided
+            Timestamp deadlineTimestamp = null;
+            if (!deadline.isEmpty()) {
+                try {
+                    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+                    Date parsedDate = dateFormat.parse(deadline);
+                    deadlineTimestamp = new Timestamp(parsedDate);
+                } catch (ParseException e) {
+                    Log.e("AddTaskActivity", "Invalid deadline format", e);
+                    Toast.makeText(AddTaskActivity.this, "Invalid deadline format. Use yyyy-MM-dd.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
             }
+
+            // Prepare task data
+            Map<String, Object> taskData = new HashMap<>();
+            taskData.put("task_title", taskTitle);
+            taskData.put("task_details", taskDescription);
+            taskData.put("task_deadline", deadlineTimestamp); // Use null if no deadline
+            taskData.put("assigned_user_id", userId);
+            taskData.put("department_id", departmentId);
+            taskData.put("isCompleted", false); // Default to incomplete
+
+            // Insert task into Firestore
+            db.collection("tasks")
+                    .add(taskData)
+                    .addOnSuccessListener(documentReference -> {
+                        Log.d("AddTaskActivity", "Task added successfully with ID: " + documentReference.getId());
+                        Toast.makeText(AddTaskActivity.this, "Task added successfully", Toast.LENGTH_SHORT).show();
+                        finish(); // Return to UserTasksActivity
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e("AddTaskActivity", "Failed to add task", e);
+                        Toast.makeText(AddTaskActivity.this, "Failed to add task. Try again.", Toast.LENGTH_SHORT).show();
+                    });
         });
     }
 }

@@ -7,6 +7,14 @@
     android:padding="16dp"
     tools:context=".RegisterActivity">
 
+    <EditText
+        android:id="@+id/editTextRegisterEmail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Email"
+        android:inputType="textEmailAddress" />
+
+
     <!-- Username Input Field -->
     <EditText
         android:id="@+id/editTextRegisterUsername"

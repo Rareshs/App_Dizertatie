@@ -1,7 +1,6 @@
 package com.example.app_dizertatie;
 
 import android.content.Intent;
-import android.database.Cursor;
 import android.os.Bundle;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
@@ -10,32 +9,41 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+
 import java.util.ArrayList;
 
 public class AdminActivity extends AppCompatActivity {
 
-    private DataBaseHelper db;
+    private FirebaseFirestore db; // Firestore instance
     private ListView listViewUsers;
     private ArrayList<String> userList;
-    private ArrayList<Integer> userIdList;
+    private ArrayList<String> userIdList; // To hold Firestore document IDs
+    private String departmentName; // Admin's department name
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin);
 
-        db = new DataBaseHelper(this);
+        // Initialize Firestore
+        db = FirebaseFirestore.getInstance();
         listViewUsers = findViewById(R.id.listViewUsers);
 
         // Get data from intent
-        int adminDepartmentId = getIntent().getIntExtra("departmentId", -1);
-        String departmentName = getIntent().getStringExtra("departmentName");
+        String adminDepartmentId = getIntent().getStringExtra("departmentId");
+        departmentName = getIntent().getStringExtra("departmentName");
 
         // Set admin welcome message
         TextView textViewAdminWelcome = findViewById(R.id.textViewAdminWelcome);
-        textViewAdminWelcome.setText("Welcome, Admin of " + departmentName);
+        if (departmentName != null) {
+            textViewAdminWelcome.setText("Welcome, Admin of " + departmentName);
+        } else {
+            textViewAdminWelcome.setText("Welcome, Admin of Unknown Department");
+        }
 
-        if (adminDepartmentId == -1) {
+        if (adminDepartmentId == null || adminDepartmentId.isEmpty()) {
             Toast.makeText(this, "Invalid department information", Toast.LENGTH_SHORT).show();
             finish();
             return;
@@ -46,8 +54,8 @@ public class AdminActivity extends AppCompatActivity {
 
         // Handle user click in ListView
         listViewUsers.setOnItemClickListener((adapterView, view, position, id) -> {
-            int userId = userIdList.get(position);
-            if (userId == -1) {
+            String userId = userIdList.get(position);
+            if (userId.equals("NO_VALID_USER")) {
                 Toast.makeText(AdminActivity.this, "No valid user selected", Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -55,35 +63,47 @@ public class AdminActivity extends AppCompatActivity {
             // Navigate to UserTasksActivity
             Intent intent = new Intent(AdminActivity.this, UserTasksActivity.class);
             intent.putExtra("userId", userId);
+            intent.putExtra("departmentId", adminDepartmentId); // Pass department ID
+            intent.putExtra("departmentName", departmentName); // Pass department name
             startActivity(intent);
         });
-
     }
 
-    private void loadUsers(int departmentId) {
-        Cursor cursor = db.getUsersByDepartment(departmentId);
+    private void loadUsers(String departmentId) {
+        // Query Firestore for users in the specified department
+        db.collection("users")
+                .whereEqualTo("department_id", departmentId)
+                .whereEqualTo("role", "User") // Only retrieve users with the "User" role
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    userList = new ArrayList<>();
+                    userIdList = new ArrayList<>();
 
-        userList = new ArrayList<>();
-        userIdList = new ArrayList<>();
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                            String userId = document.getId(); // Firestore document ID
+                            String username = document.getString("username");
 
-        if (cursor != null && cursor.moveToFirst()) {
-            do {
-                int userId = cursor.getInt(cursor.getColumnIndexOrThrow(DataBaseHelper.COLUMN_USER_ID));
-                String username = cursor.getString(cursor.getColumnIndexOrThrow(DataBaseHelper.COLUMN_USERNAME));
+                            if (username != null && !username.isEmpty()) {
+                                userIdList.add(userId);
+                                userList.add(username);
+                            } else {
+                                userList.add("Unknown User");
+                                userIdList.add("NO_VALID_USER");
+                            }
+                        }
+                    } else {
+                        userList.add("No users found in your department");
+                        userIdList.add("NO_VALID_USER"); // Placeholder for no valid user
+                    }
 
-                userIdList.add(userId);
-                userList.add(username);
-
-            } while (cursor.moveToNext());
-            cursor.close();
-        }
-
-        if (userList.isEmpty()) {
-            userList.add("No users found in your department");
-            userIdList.add(-1); // Placeholder for no valid user
-        }
-
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, userList);
-        listViewUsers.setAdapter(adapter);
+                    // Populate ListView with user data
+                    ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, userList);
+                    listViewUsers.setAdapter(adapter);
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(AdminActivity.this, "Error loading users", Toast.LENGTH_SHORT).show();
+                });
     }
 }
+
