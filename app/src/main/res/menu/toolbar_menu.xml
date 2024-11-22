@@ -1,23 +1,23 @@
-<?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:android="http://schemas.android.com/apk/res/android">
+<menu xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/nav_home"
-        android:icon="@drawable/ic_home"
-        android:title="Home" />
+        android:title="Home"
+        app:actionViewClass="android.widget.TextView" />
     <item
         android:id="@+id/nav_department"
-        android:icon="@drawable/ic_department"
-        android:title="Department Tasks" />
+        android:title="Department Tasks"
+        app:actionViewClass="android.widget.TextView" />
     <item
         android:id="@+id/nav_reports"
-        android:icon="@drawable/ic_reports"
-        android:title="Reports" />
+        android:title="Reports"
+        app:actionViewClass="android.widget.TextView" />
     <item
         android:id="@+id/nav_settings"
-        android:icon="@drawable/ic_settings"
-        android:title="Settings" />
+        android:title="Settings"
+        app:actionViewClass="android.widget.TextView" />
     <item
         android:id="@+id/nav_logout"
-        android:icon="@drawable/ic_logout"
-        android:title="Log Out" />
+        android:title="Log Out"
+        app:actionViewClass="android.widget.TextView" />
 </menu>

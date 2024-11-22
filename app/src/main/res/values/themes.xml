@@ -1,9 +1,32 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+    <!-- Base Application Theme for Light Mode -->
     <style name="Base.Theme.App_Dizertatie" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <!-- Primary Colors -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryVariant">@color/colorPrimaryDark</item>
+        <item name="colorOnPrimary">@color/colorOnPrimary</item>
+
+        <!-- Background Colors -->
+        <item name="android:statusBarColor">@color/colorPrimaryDark</item>
+        <item name="android:navigationBarColor">@color/colorPrimaryDark</item>
+        <item name="android:windowBackground">@color/white</item>
+
+        <!-- Toolbar Customization -->
+        <item name="actionBarStyle">@style/ToolbarStyle</item>
+        <item name="android:actionBarStyle">@style/ToolbarStyle</item>
     </style>
 
+    <!-- Application Theme -->
     <style name="Theme.App_Dizertatie" parent="Base.Theme.App_Dizertatie" />
+
+    <!-- Toolbar Styling -->
+    <style name="ToolbarStyle" parent="Widget.Material3.Toolbar">
+        <item name="android:background">@color/colorPrimary</item>
+        <item name="titleTextColor">@color/colorOnPrimary</item>
+        <item name="subtitleTextColor">@color/colorOnPrimary</item>
+        <item name="android:padding">0dp</item>
+        <item name="android:layout_height">56dp</item> <!-- Standard toolbar height -->
+        <item name="android:layout_margin">0dp</item>
+    </style>
+
 </resources>
