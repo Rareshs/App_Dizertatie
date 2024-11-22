@@ -1,109 +1,89 @@
 package com.example.app_dizertatie;
 
-import android.content.Intent;
 import android.os.Bundle;
-import android.widget.ArrayAdapter;
-import android.widget.ListView;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.view.Menu;
+import android.view.MenuItem;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
-
-import java.util.ArrayList;
+import androidx.appcompat.widget.Toolbar;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentTransaction;
 
 public class AdminActivity extends AppCompatActivity {
 
-    private FirebaseFirestore db; // Firestore instance
-    private ListView listViewUsers;
-    private ArrayList<String> userList;
-    private ArrayList<String> userIdList; // To hold Firestore document IDs
-    private String departmentName; // Admin's department name
+    private static final int HOME = 1;
+    private static final int DEPARTMENT = 2;
+    private static final int REPORTS = 3;
+    private static final int SETTINGS = 4;
+    private static final int LOGOUT = 5;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin);
 
-        // Initialize Firestore
-        db = FirebaseFirestore.getInstance();
-        listViewUsers = findViewById(R.id.listViewUsers);
+        // Set up Toolbar
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
 
-        // Get data from intent
-        String adminDepartmentId = getIntent().getStringExtra("departmentId");
-        departmentName = getIntent().getStringExtra("departmentName");
-
-        // Set admin welcome message
-        TextView textViewAdminWelcome = findViewById(R.id.textViewAdminWelcome);
-        if (departmentName != null) {
-            textViewAdminWelcome.setText("Welcome, Admin of " + departmentName);
-        } else {
-            textViewAdminWelcome.setText("Welcome, Admin of Unknown Department");
+        // Load the default fragment (HomeFragment) when activity starts
+        if (savedInstanceState == null) {
+            loadFragment(new HomeFragment(), "Home");
         }
-
-        if (adminDepartmentId == null || adminDepartmentId.isEmpty()) {
-            Toast.makeText(this, "Invalid department information", Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
-
-        // Load users in the admin's department
-        loadUsers(adminDepartmentId);
-
-        // Handle user click in ListView
-        listViewUsers.setOnItemClickListener((adapterView, view, position, id) -> {
-            String userId = userIdList.get(position);
-            if (userId.equals("NO_VALID_USER")) {
-                Toast.makeText(AdminActivity.this, "No valid user selected", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Navigate to UserTasksActivity
-            Intent intent = new Intent(AdminActivity.this, UserTasksActivity.class);
-            intent.putExtra("userId", userId);
-            intent.putExtra("departmentId", adminDepartmentId); // Pass department ID
-            intent.putExtra("departmentName", departmentName); // Pass department name
-            startActivity(intent);
-        });
     }
 
-    private void loadUsers(String departmentId) {
-        // Query Firestore for users in the specified department
-        db.collection("users")
-                .whereEqualTo("department_id", departmentId)
-                .whereEqualTo("role", "User") // Only retrieve users with the "User" role
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    userList = new ArrayList<>();
-                    userIdList = new ArrayList<>();
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Manually add menu items with integer IDs
+        menu.add(Menu.NONE, HOME, Menu.NONE, "Home").setIcon(R.drawable.ic_home);
+        menu.add(Menu.NONE, DEPARTMENT, Menu.NONE, "Department Tasks").setIcon(R.drawable.ic_department);
+        menu.add(Menu.NONE, REPORTS, Menu.NONE, "Reports").setIcon(R.drawable.ic_reports);
+        menu.add(Menu.NONE, SETTINGS, Menu.NONE, "Settings").setIcon(R.drawable.ic_settings);
+        menu.add(Menu.NONE, LOGOUT, Menu.NONE, "Log Out").setIcon(R.drawable.ic_logout);
+        return true;
+    }
 
-                    if (!queryDocumentSnapshots.isEmpty()) {
-                        for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
-                            String userId = document.getId(); // Firestore document ID
-                            String username = document.getString("username");
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        Fragment fragment = null;
+        String title = null;
 
-                            if (username != null && !username.isEmpty()) {
-                                userIdList.add(userId);
-                                userList.add(username);
-                            } else {
-                                userList.add("Unknown User");
-                                userIdList.add("NO_VALID_USER");
-                            }
-                        }
-                    } else {
-                        userList.add("No users found in your department");
-                        userIdList.add("NO_VALID_USER"); // Placeholder for no valid user
-                    }
+        // Handle menu item clicks
+        switch (item.getItemId()) {
+            case HOME:
+                fragment = new HomeFragment();
+                title = "Home";
+                break;
+            case DEPARTMENT:
+                fragment = new DepartmentFragment();
+                title = "Department Tasks";
+                break;
+            case REPORTS:
+                fragment = new ReportsFragment();
+                title = "Reports";
+                break;
+            case SETTINGS:
+                fragment = new SettingsFragment();
+                title = "Settings";
+                break;
+            case LOGOUT:
+                finish(); // Exit the app or log out
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
 
-                    // Populate ListView with user data
-                    ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, userList);
-                    listViewUsers.setAdapter(adapter);
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(AdminActivity.this, "Error loading users", Toast.LENGTH_SHORT).show();
-                });
+        if (fragment != null) {
+            loadFragment(fragment, title);
+        }
+        return true;
+    }
+
+    private void loadFragment(Fragment fragment, String title) {
+        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+        transaction.replace(R.id.content_layout, fragment);
+        transaction.commit();
+        setTitle(title); // Set the title for the current screen
     }
 }
-
