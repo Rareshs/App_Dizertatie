@@ -110,10 +110,6 @@ public class AddTaskActivity extends AppCompatActivity {
                     .addOnSuccessListener(documentReference -> {
                         Log.d(TAG, "Task added successfully with ID: " + documentReference.getId());
                         Toast.makeText(AddTaskActivity.this, "Task added successfully", Toast.LENGTH_SHORT).show();
-
-                        // Create a notification for the assigned user
-                        createNotificationForUser(userId, "New Task Assigned", "You have been assigned the task: " + taskTitle);
-
                         finish(); // Return to UserTasksActivity
                     })
                     .addOnFailureListener(e -> {
@@ -121,21 +117,5 @@ public class AddTaskActivity extends AppCompatActivity {
                         Toast.makeText(AddTaskActivity.this, "Failed to add task. Try again.", Toast.LENGTH_SHORT).show();
                     });
         });
-    }
-
-    private void createNotificationForUser(String userId, String title, String message) {
-        // Prepare notification data
-        Map<String, Object> notificationData = new HashMap<>();
-        notificationData.put("userId", userId);
-        notificationData.put("title", title);
-        notificationData.put("message", message);
-        notificationData.put("timestamp", Timestamp.now());
-        notificationData.put("isRead", false); // Notification is unread by default
-
-        // Add notification to Firestore
-        db.collection("notifications")
-                .add(notificationData)
-                .addOnSuccessListener(documentReference -> Log.d(TAG, "Notification created successfully for userId: " + userId))
-                .addOnFailureListener(e -> Log.e(TAG, "Failed to create notification", e));
     }
 }

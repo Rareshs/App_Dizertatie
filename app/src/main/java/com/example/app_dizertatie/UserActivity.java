@@ -17,6 +17,7 @@ import com.google.firebase.firestore.WriteBatch;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class UserActivity extends AppCompatActivity {
@@ -81,7 +82,7 @@ public class UserActivity extends AppCompatActivity {
                             String deadline = "None";
                             if (deadlineTimestamp != null) {
                                 // Format the Timestamp into a readable date
-                                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+                                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
                                 deadline = dateFormat.format(deadlineTimestamp.toDate());
                             }
 
@@ -129,21 +130,10 @@ public class UserActivity extends AppCompatActivity {
 
         batch.set(db.collection("history").document(), historyData);
 
-        // Create a notification for the admin
-        Map<String, Object> notificationData = new HashMap<>();
-        notificationData.put("userId", "adminId"); // Replace with dynamic admin ID or query the appropriate admin
-        notificationData.put("title", "Task Completed");
-        notificationData.put("message", "Task '" + taskList.get(position) + "' was completed by user.");
-        notificationData.put("taskId", taskId);
-        notificationData.put("timestamp", Timestamp.now());
-        notificationData.put("isRead", false); // Notification is unread by default
-
-        batch.set(db.collection("notifications").document(), notificationData);
-
         // Commit the batch write
         batch.commit()
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Task marked as completed and notification created for admin. Task ID: " + taskId);
+                    Log.d(TAG, "Task marked as completed. Task ID: " + taskId);
                     Toast.makeText(this, "Task marked as completed.", Toast.LENGTH_SHORT).show();
 
                     // Remove the task from the current list and notify the adapter
