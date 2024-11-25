@@ -14,16 +14,15 @@ import com.google.firebase.firestore.Query;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.Locale;
 
 public class AdminTaskHistoryActivity extends AppCompatActivity {
 
-    private static final String TAG = "AdminTaskHistoryActivity"; // For logging
+    private static final String TAG = "AdminTaskHistoryActivity";
     private FirebaseFirestore db; // Firestore instance
     private ListView listViewHistory;
     private ArrayList<String> historyList;
-    private String userId; // Changed to String for Firebase compatibility
+    private String userId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,10 +61,11 @@ public class AdminTaskHistoryActivity extends AppCompatActivity {
                         queryDocumentSnapshots.forEach(document -> {
                             String taskTitle = document.getString("task_title");
 
-                            // Safely handle null timestamps
-                            com.google.firebase.Timestamp timestamp = document.getTimestamp("timestamp");
+                            // Retrieve and format the timestamp
+                            Timestamp timestamp = document.getTimestamp("timestamp");
                             String formattedTimestamp = (timestamp != null)
-                                    ? timestamp.toDate().toString()
+                                    ? new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                                    .format(timestamp.toDate())
                                     : "No timestamp available";
 
                             String historyEntry = "Task: " + taskTitle + "\nCompleted at: " + formattedTimestamp;
@@ -82,5 +82,4 @@ public class AdminTaskHistoryActivity extends AppCompatActivity {
                     Toast.makeText(this, "Error loading task history", Toast.LENGTH_SHORT).show();
                 });
     }
-
 }

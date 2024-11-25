@@ -20,6 +20,7 @@ import java.util.Map;
 
 public class AddTaskActivity extends AppCompatActivity {
 
+    private static final String TAG = "AddTaskActivity";
     private FirebaseFirestore db; // Firestore instance
     private String userId;
     private String username;
@@ -42,12 +43,12 @@ public class AddTaskActivity extends AppCompatActivity {
         username = getIntent().getStringExtra("username");
         departmentId = getIntent().getStringExtra("departmentId");
 
-        // Log values to debug
-        Log.d("AddTaskActivity", "Received userId: " + userId + ", username: " + username + ", departmentId: " + departmentId);
+        // Log values for debugging
+        Log.d(TAG, "Received userId: " + userId + ", username: " + username + ", departmentId: " + departmentId);
 
         // Check for invalid data
         if (userId == null || userId.isEmpty() || username == null || username.isEmpty() || departmentId == null || departmentId.isEmpty()) {
-            Log.e("AddTaskActivity", "Invalid data passed to AddTaskActivity");
+            Log.e(TAG, "Invalid data passed to AddTaskActivity");
             Toast.makeText(this, "Invalid user or department information", Toast.LENGTH_SHORT).show();
             finish();
             return;
@@ -88,7 +89,7 @@ public class AddTaskActivity extends AppCompatActivity {
                     Date parsedDate = dateFormat.parse(deadline);
                     deadlineTimestamp = new Timestamp(parsedDate);
                 } catch (ParseException e) {
-                    Log.e("AddTaskActivity", "Invalid deadline format", e);
+                    Log.e(TAG, "Invalid deadline format", e);
                     Toast.makeText(AddTaskActivity.this, "Invalid deadline format. Use yyyy-MM-dd.", Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -107,14 +108,34 @@ public class AddTaskActivity extends AppCompatActivity {
             db.collection("tasks")
                     .add(taskData)
                     .addOnSuccessListener(documentReference -> {
-                        Log.d("AddTaskActivity", "Task added successfully with ID: " + documentReference.getId());
+                        Log.d(TAG, "Task added successfully with ID: " + documentReference.getId());
                         Toast.makeText(AddTaskActivity.this, "Task added successfully", Toast.LENGTH_SHORT).show();
+
+                        // Create a notification for the assigned user
+                        createNotificationForUser(userId, "New Task Assigned", "You have been assigned the task: " + taskTitle);
+
                         finish(); // Return to UserTasksActivity
                     })
                     .addOnFailureListener(e -> {
-                        Log.e("AddTaskActivity", "Failed to add task", e);
+                        Log.e(TAG, "Failed to add task", e);
                         Toast.makeText(AddTaskActivity.this, "Failed to add task. Try again.", Toast.LENGTH_SHORT).show();
                     });
         });
+    }
+
+    private void createNotificationForUser(String userId, String title, String message) {
+        // Prepare notification data
+        Map<String, Object> notificationData = new HashMap<>();
+        notificationData.put("userId", userId);
+        notificationData.put("title", title);
+        notificationData.put("message", message);
+        notificationData.put("timestamp", Timestamp.now());
+        notificationData.put("isRead", false); // Notification is unread by default
+
+        // Add notification to Firestore
+        db.collection("notifications")
+                .add(notificationData)
+                .addOnSuccessListener(documentReference -> Log.d(TAG, "Notification created successfully for userId: " + userId))
+                .addOnFailureListener(e -> Log.e(TAG, "Failed to create notification", e));
     }
 }

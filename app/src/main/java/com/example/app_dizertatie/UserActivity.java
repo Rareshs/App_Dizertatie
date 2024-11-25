@@ -14,13 +14,14 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.WriteBatch;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 public class UserActivity extends AppCompatActivity {
 
-    private static final String TAG = "UserActivity"; // For logging
+    private static final String TAG = "UserActivity";
     private FirebaseFirestore db; // Firestore instance
     private ListView listViewUserTasks;
     private ArrayList<String> taskList;
@@ -75,11 +76,22 @@ public class UserActivity extends AppCompatActivity {
                             String title = document.getString("task_title");
                             String details = document.getString("task_details");
 
-                            String taskDisplay = title + ": " + details;
+                            // Retrieve task_deadline as Timestamp and convert to formatted String
+                            Timestamp deadlineTimestamp = document.getTimestamp("task_deadline");
+                            String deadline = "None";
+                            if (deadlineTimestamp != null) {
+                                // Format the Timestamp into a readable date
+                                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+                                deadline = dateFormat.format(deadlineTimestamp.toDate());
+                            }
+
+                            // Combine task details for display
+                            String taskDisplay = title + ": " + details + "\nDeadline: " + deadline;
                             taskList.add(taskDisplay);
                             taskIds.add(id);
                         }
 
+                        // Set the adapter to display tasks in the ListView
                         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, taskList);
                         listViewUserTasks.setAdapter(adapter);
                     }
@@ -95,22 +107,15 @@ public class UserActivity extends AppCompatActivity {
                 .setTitle("Confirm Completion")
                 .setMessage("Are you sure you completed this task?")
                 .setPositiveButton("Yes", (dialog, which) -> {
-                    markTaskAsCompleted(taskId);
+                    markTaskAsCompleted(taskId, position);
                 })
                 .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
                 .create()
                 .show();
     }
 
-    private void markTaskAsCompleted(String taskId) {
+    private void markTaskAsCompleted(String taskId, int position) {
         WriteBatch batch = db.batch();
-
-        // Get the index of the task in the taskList
-        int taskIndex = taskIds.indexOf(taskId);
-        if (taskIndex == -1) {
-            Log.e(TAG, "Task ID not found in task list");
-            return;
-        }
 
         // Update the task in the "tasks" collection to mark it as completed
         batch.update(db.collection("tasks").document(taskId), "isCompleted", true);
@@ -119,24 +124,35 @@ public class UserActivity extends AppCompatActivity {
         Map<String, Object> historyData = new HashMap<>();
         historyData.put("user_id", userId);
         historyData.put("task_id", taskId);
-        historyData.put("timestamp", Timestamp.now()); // Use Firestore Timestamp
-        historyData.put("task_title", taskList.get(taskIndex)); // Use the task title from the list
+        historyData.put("timestamp", Timestamp.now());
+        historyData.put("task_title", taskList.get(position));
 
         batch.set(db.collection("history").document(), historyData);
+
+        // Create a notification for the admin
+        Map<String, Object> notificationData = new HashMap<>();
+        notificationData.put("userId", "adminId"); // Replace with dynamic admin ID or query the appropriate admin
+        notificationData.put("title", "Task Completed");
+        notificationData.put("message", "Task '" + taskList.get(position) + "' was completed by user.");
+        notificationData.put("taskId", taskId);
+        notificationData.put("timestamp", Timestamp.now());
+        notificationData.put("isRead", false); // Notification is unread by default
+
+        batch.set(db.collection("notifications").document(), notificationData);
 
         // Commit the batch write
         batch.commit()
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Task marked as completed and history updated for taskId: " + taskId);
+                    Log.d(TAG, "Task marked as completed and notification created for admin. Task ID: " + taskId);
                     Toast.makeText(this, "Task marked as completed.", Toast.LENGTH_SHORT).show();
 
                     // Remove the task from the current list and notify the adapter
-                    taskList.remove(taskIndex);
-                    taskIds.remove(taskIndex);
+                    taskList.remove(position);
+                    taskIds.remove(position);
                     ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, taskList);
                     listViewUserTasks.setAdapter(adapter);
 
-                    // Optionally notify if the list is empty after removing the task
+                    // Notify if the list is empty after removing the task
                     if (taskList.isEmpty()) {
                         Toast.makeText(this, "No more pending tasks.", Toast.LENGTH_SHORT).show();
                     }

@@ -48,6 +48,7 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore-ktx") // Firestore
     implementation("com.google.firebase:firebase-database-ktx") // Realtime Database
     implementation("com.google.firebase:firebase-storage-ktx") // Cloud Storage
+    implementation("com.google.firebase:firebase-messaging:23.1.0")// Messages
 }
 
 // Apply Google Services plugin
