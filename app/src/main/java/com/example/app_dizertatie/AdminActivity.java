@@ -27,9 +27,16 @@ public class AdminActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        // Load the default fragment (HomeFragment) when activity starts
+        // Retrieve departmentId and departmentName from intent or saved state
+        String departmentId = getIntent().getStringExtra("departmentId");
+        String departmentName = getIntent().getStringExtra("departmentName");
+
+        // Pass the departmentId and departmentName to the default fragment
         if (savedInstanceState == null) {
-            loadFragment(new HomeFragment(), "Home");
+            Bundle args = new Bundle();
+            args.putString("departmentId", departmentId);
+            args.putString("departmentName", departmentName);
+            loadFragment(new HomeFragment(), "Home", args);
         }
     }
 
@@ -48,8 +55,14 @@ public class AdminActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         Fragment fragment = null;
         String title = null;
+        Bundle args = new Bundle();
 
-        // Handle menu item clicks
+        // Retrieve departmentId and departmentName
+        String departmentId = getIntent().getStringExtra("departmentId");
+        String departmentName = getIntent().getStringExtra("departmentName");
+        args.putString("departmentId", departmentId);
+        args.putString("departmentName", departmentName);
+
         switch (item.getItemId()) {
             case HOME:
                 fragment = new HomeFragment();
@@ -75,12 +88,15 @@ public class AdminActivity extends AppCompatActivity {
         }
 
         if (fragment != null) {
-            loadFragment(fragment, title);
+            loadFragment(fragment, title, args);
         }
         return true;
     }
 
-    private void loadFragment(Fragment fragment, String title) {
+    private void loadFragment(Fragment fragment, String title, Bundle args) {
+        if (args != null) {
+            fragment.setArguments(args);
+        }
         FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
         transaction.replace(R.id.content_layout, fragment);
         transaction.commit();
